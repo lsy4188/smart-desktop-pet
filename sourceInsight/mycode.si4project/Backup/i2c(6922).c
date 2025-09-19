@@ -1,0 +1,74 @@
+#include "i2c.h"
+
+#define I2C1_SCL GPIO_Pin_6
+#define I2C1_SDA GPIO_Pin_7
+#define I2C1_CLOCK_SPEED 400000  // 400kHz
+
+/*
+PB6-->I2C1_SCL
+PB7--> I2C1_SDA
+*/
+void init_i2c(void){
+	GPIO_InitTypeDef GPIO_InitStruct;
+	I2C_InitTypeDef I2C_InitStruct;
+	NVIC_InitTypeDef NVIC_InitStruct;
+	//时钟配置
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+	
+	//GPIO配置 
+	GPIO_InitStruct.GPIO_Mode=GPIO_Mode_AF;//开启复用功能
+	GPIO_InitStruct.GPIO_OType=GPIO_OType_OD;//开漏模式
+	GPIO_InitStruct.GPIO_PuPd=GPIO_PuPd_UP;//上拉模式
+	GPIO_InitStruct.GPIO_Pin= I2C1_SDA|I2C1_SCL;//引脚初始化
+	GPIO_InitStruct.GPIO_Speed=GPIO_Speed_50MHz;//设置传输频率
+	GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+	//复用功能配置
+	GPIO_PinAFConfig(GPIOB,GPIO_PinSource6,GPIO_AF_I2C1);
+	GPIO_PinAFConfig(GPIOB,GPIO_PinSource7,GPIO_AF_I2C1);
+
+	//I2C初始化、中断和启动
+	I2C_InitStruct.I2C_Ack=I2C_Ack_Enable;
+	I2C_InitStruct.I2C_AcknowledgedAddress=I2C_AcknowledgedAddress_7bit;
+	I2C_InitStruct.I2C_ClockSpeed=I2C1_CLOCK_SPEED;//快速模式
+	I2C_InitStruct.I2C_DutyCycle=I2C_DutyCycle_2;//快速模式下的占空比，标准模式不需要
+	I2C_InitStruct.I2C_Mode=I2C_Mode_I2C;//标准I2C模式
+	I2C_InitStruct.I2C_OwnAddress1=0x00;//主设备自己的地址，可以任意（不冲突即可）
+	I2C_Init(I2C1, &I2C_InitStruct);
+
+	/*//中断配置
+	I2C_ITConfig(I2C1,I2C_IT_EVT, ENABLE);
+	NVIC_InitStruct.NVIC_IRQChannel=I2C1_EV_IRQn;//选择事件中断
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority=4;//抢占优先级
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority=4;//响应优先级
+	NVIC_InitStruct.NVIC_IRQChannelCmd=ENABLE;//开启中断
+	NVIC_Init(&NVIC_InitStruct);*/
+	
+	I2C_Cmd(I2C1, ENABLE);
+	
+}
+
+
+void write(uint8_t Address,uint8_t Data){
+	//判断总线是否空闲
+	while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY));
+	//发送起始条件
+	I2C_GenerateSTART(I2C1, ENABLE);
+	while(!I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_MODE_SELECT));
+	//发送从设备地址
+	I2C_Send7bitAddress(I2C1,Address,I2C_Direction_Transmitter);
+	while(!I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+	//发送数据
+	I2C_SendData(I2C1,Data);
+	while(!I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTING));
+	//结束发送
+	I2C_GenerateSTOP(I2C1, ENABLE);
+}
+
+void read(){
+
+}
+
+
+

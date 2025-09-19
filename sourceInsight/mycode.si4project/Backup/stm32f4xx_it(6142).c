@@ -1,0 +1,228 @@
+/**
+  ******************************************************************************
+  * @file    Project/STM32F4xx_StdPeriph_Templates/stm32f4xx_it.c 
+  * @author  MCD Application Team
+  * @version V1.8.0
+  * @date    04-November-2016
+  * @brief   Main Interrupt Service Routines.
+  *          This file provides template for all exceptions handler and 
+  *          peripherals interrupt service routine.
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; COPYRIGHT 2016 STMicroelectronics</center></h2>
+  *
+  * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
+  * You may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at:
+  *
+  *        http://www.st.com/software_license_agreement_liberty_v2
+  *
+  * Unless required by applicable law or agreed to in writing, software 
+  * distributed under the License is distributed on an "AS IS" BASIS, 
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+  ******************************************************************************
+  */
+
+/* Includes ------------------------------------------------------------------*/
+#include "stm32f4xx_it.h"
+#include "main.h"
+#include "key.h"
+
+/** @addtogroup Template_Project
+  * @{
+  */
+
+/* Private typedef -----------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
+
+/******************************************************************************/
+/*            Cortex-M4 Processor Exceptions Handlers                         */
+/******************************************************************************/
+
+/**
+  * @brief  This function handles NMI exception.
+  * @param  None
+  * @retval None
+  */
+void NMI_Handler(void)
+{
+}
+
+/**
+  * @brief  This function handles Hard Fault exception.
+  * @param  None
+  * @retval None
+  */
+void HardFault_Handler(void)
+{
+  /* Go to infinite loop when Hard Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Memory Manage exception.
+  * @param  None
+  * @retval None
+  */
+void MemManage_Handler(void)
+{
+  /* Go to infinite loop when Memory Manage exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Bus Fault exception.
+  * @param  None
+  * @retval None
+  */
+void BusFault_Handler(void)
+{
+  /* Go to infinite loop when Bus Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Usage Fault exception.
+  * @param  None
+  * @retval None
+  */
+void UsageFault_Handler(void)
+{
+  /* Go to infinite loop when Usage Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles SVCall exception.
+  * @param  None
+  * @retval None
+  
+void SVC_Handler(void)
+{
+}
+*/
+
+/**
+  * @brief  This function handles Debug Monitor exception.
+  * @param  None
+  * @retval None
+  */
+void DebugMon_Handler(void)
+{
+}
+
+
+/**
+  * @brief  This function handles PendSVC exception.
+  * @param  None
+  * @retval None
+ 
+void PendSV_Handler(void)
+{
+} 
+*/
+
+/**
+  * @brief  This function handles SysTick Handler.
+  * @param  None
+  * @retval None
+  
+void SysTick_Handler(void)
+{
+}
+*/
+
+/******************************************************************************/
+/*                 STM32F4xx Peripherals Interrupt Handlers                   */
+/*  Add here the Interrupt Handler for the used peripheral(s) (PPP), for the  */
+/*  available peripheral interrupt handler's name please refer to the startup */
+/*  file (startup_stm32f4xx.s).                                               */
+/******************************************************************************/
+
+/**
+  * @brief  This function handles PPP interrupt request.
+  * @param  None
+  * @retval None
+  */
+extern u8 mode;
+extern u8 key_flag;
+void EXTI9_5_IRQHandler(void){
+	if(EXTI_GetITStatus(EXTI_Line5)){
+		EXTI_ClearITPendingBit(EXTI_Line5);
+		mode=LED;
+		key_flag^=0x01;
+	}
+	if(EXTI_GetITStatus(EXTI_Line8)){
+		EXTI_ClearITPendingBit(EXTI_Line8);
+		mode=BEEP;	
+		key_flag^=0x02;
+	}else if(EXTI_GetITStatus(EXTI_Line9)){
+		EXTI_ClearITPendingBit(EXTI_Line9);
+		mode=FAN;
+		key_flag^=0x04;	
+	}
+}
+
+extern u8 cache[32];
+extern u8 cmd_ready;
+extern u8 cmd_index;
+void USART6_IRQHandler(void){
+	u16 data=0;
+	if(USART_GetITStatus(USART6,USART_IT_RXNE)){
+		USART_ClearITPendingBit(USART6,USART_IT_RXNE);
+		data=USART_ReceiveData(USART6);
+       if (cmd_index < 31) {
+            cache[cmd_index++] = data;
+        } else {
+            cmd_index = 0;
+        }
+	}
+	if(USART_GetITStatus(USART6,USART_IT_IDLE)){
+         USART6->DR;//清零
+		 if (cmd_index > 0) {
+                cmd_ready = 1;
+        }
+	}
+}
+
+uint8_t index=0;
+extern uint8_t flag;
+extern uint8_t seg[17];
+extern uint8_t pos[4];
+void TIM7_IRQHandler(void){
+	if(TIM_GetITStatus(TIM7,TIM_IT_Update)){
+		TIM_ClearITPendingBit(TIM7,TIM_IT_Update);
+		flag=1;
+		GPIO_ResetBits(GPIOB, GPIO_Pin_12);//拉低NSS开始通讯
+		send_data(pos[index%4]);
+		send_data(seg[0]);
+		GPIO_SetBits(GPIOB, GPIO_Pin_12);//拉高NSS结束通讯
+	}
+}
+
+void I2C1_EV_IRQHandler(){
+	if(I2C_GetITStatus(I2C1, I2C_IT_RXNE)){
+		I2C_ClearITPendingBit(I2C1, I2C_IT_RXNE);
+		USART_SendData(USART6,I2C_ReceiveData(I2C1));
+	}
+}
+
+
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
